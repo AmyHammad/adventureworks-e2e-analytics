@@ -1,0 +1,132 @@
+### A. Sales performance (use: `Sales.SalesOrderHeader`, `Sales.SalesOrderDetail`, `Sales.SalesTerritory`)
+
+1. **Total revenue by year and quarter**
+   - Revenue = `OrderQty * UnitPrice * (1 - UnitPriceDiscount)`.
+   - Group by `YEAR(OrderDate)` and `DATEPART(QUARTER, OrderDate)`.
+
+2. **Monthly revenue trend**
+   - Group by `YEAR(OrderDate), MONTH(OrderDate)`.
+   - This feeds a Power BI line chart.
+
+3. **Revenue by territory**
+   - Join `Sales.SalesOrderHeader` → `Sales.SalesTerritory` (on `TerritoryID`).
+   - Show revenue and number of orders per territory.
+
+4. **Top N countries/regions by revenue**
+   - From `Sales.SalesTerritory` use fields like `Name` or `CountryRegionCode`.
+
+5. **Average order value (AOV) over time**
+   - `SUM(TotalDue) / COUNT(SalesOrderID)` per month/year.
+
+---
+
+### B. Products & categories (use: `Production.Product`, `Production.ProductSubcategory`, `Production.ProductCategory`, `Sales.SalesOrderDetail`)
+
+6. **Top 10 products by revenue**
+   - Join `Sales.SalesOrderDetail` with `Production.Product` on `ProductID`.
+   - Sum revenue per product, order by revenue desc, take top 10.
+
+7. **Revenue by product category & subcategory**
+   - Chain joins:  
+     `SalesOrderDetail` → `Product` → `ProductSubcategory` → `ProductCategory`.
+   - Group by category/subcategory (e.g. Bikes, Components, Clothing).
+
+8. **Margin / profit by category (if using list price vs standard cost)**
+   - Use `Production.Product.ListPrice` vs `StandardCost` to approximate margin.
+   - Estimate profit = (ListPrice – StandardCost) * quantity (approximate).
+
+9. **Low-performing products**
+   - Products with very low sales quantity in the last X years.
+   - Left join from `Product` to `SalesOrderDetail` and filter on small totals.
+
+---
+
+### C. Customers & geography (use: `Sales.Customer`, `Person.Person`, `Person.Address`, `Sales.SalesOrderHeader`, `Person.StateProvince`, `Person.CountryRegion`)
+
+10. **Top 20 customers by revenue**
+    - Join `Sales.Customer` → `Sales.SalesOrderHeader` (on `CustomerID`).
+    - Group by `CustomerID` (and maybe `Person` name fields).
+
+11. **Revenue concentration**
+    - What % of total revenue comes from the top 5 / 10 customers?
+    - Compute total revenue, then cumulative share of ranked customers.
+
+12. **Average order value by country or region**
+    - Combine `SalesOrderHeader` with `Customer` and then address / country tables.
+    - Group by country/region.
+
+13. **Number of active customers per year**
+    - Unique count of customers who placed an order in each year.
+
+---
+
+### D. Salespeople & quotas (use: `Sales.SalesPerson`, `Sales.SalesOrderHeader`, `Sales.SalesTerritory`, `Sales.SalesPersonQuotaHistory`)
+
+14. **Revenue by salesperson**
+    - Join `SalesOrderHeader` (which has `SalesPersonID`) with `Sales.SalesPerson`.
+    - Sum revenue and number of orders per salesperson.
+
+15. **Performance vs quota**
+    - Use `Sales.SalesPersonQuotaHistory` (quota per period).
+    - Compare actual sales (from `SalesOrderHeader`) to quota by period.
+
+16. **Top salespeople by region**
+    - Combine `SalesPerson` with `SalesTerritory` and `SalesOrderHeader`.
+    - Group by salesperson and territory.
+
+17. **Sales performance trend for a specific salesperson**
+    - Parameter-style query: pass a SalesPersonID.
+    - Show his/her monthly revenue trend.
+
+---
+
+### E. Bonus: data quality & checks
+
+18. **Check for orders without details**
+    - Left join `SalesOrderHeader` to `SalesOrderDetail` and see if any headers have no details.
+
+19. **Check for missing or inconsistent data**
+    - For example: orders with `TotalDue` = 0, or negative discounts.
+
+---
+
+### How to organize the SQL files
+
+In your `/sql` folder:
+
+- `01_setup_and_checks.sql`
+  - Simple SELECT TOP 10 from main tables.
+  - Data quality checks, row counts per table.
+
+- `02_sales_performance.sql`
+  - Queries 1–5.
+
+- `03_products_and_categories.sql`
+  - Queries 6–9.
+
+- `04_customers_and_territories.sql`
+  - Queries 10–13.
+
+- `05_salespeople_and_quotas.sql`
+  - Queries 14–17.
+
+- `06_data_quality_extras.sql`
+  - Queries 18–19 (optional).
+
+Add comments above each query:
+
+```sql
+-- Q1: Total revenue by year and quarter
+SELECT
+    YEAR(soh.OrderDate) AS SalesYear,
+    DATEPART(QUARTER, soh.OrderDate) AS SalesQuarter,
+    SUM(sod.OrderQty * sod.UnitPrice * (1 - sod.UnitPriceDiscount)) AS Revenue
+FROM Sales.SalesOrderHeader AS soh
+JOIN Sales.SalesOrderDetail AS sod
+    ON soh.SalesOrderID = sod.SalesOrderID
+GROUP BY
+    YEAR(soh.OrderDate),
+    DATEPART(QUARTER, soh.OrderDate)
+ORDER BY
+    SalesYear,
+    SalesQuarter;
